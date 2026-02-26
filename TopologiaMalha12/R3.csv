@@ -1,4 +1,4 @@
-neighbor_address,cost
+vizinho,custo
 192.168.0.2:5000,3
 192.168.0.4:5000,5
 192.168.0.1:5000,1
