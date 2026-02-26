@@ -5,9 +5,12 @@ import json
 import threading
 import time
 from argparse import ArgumentParser
+import copy
 
 import requests
 from flask import Flask, jsonify, request
+
+from sumarizacao import sumarizar_rotas
 
 class Router:
     """
@@ -68,32 +71,25 @@ class Router:
                 print(f"Erro durante a atualização periódida: {e}")
 
     def send_updates_to_neighbors(self):
-        """
-        Envia a tabela de roteamento (potencialmente sumarizada) para todos os vizinhos.
-        """
-        # TODO: O código abaixo envia a tabela de roteamento *diretamente*.
-        #
-        # ESTE TRECHO DEVE SER CHAMAADO APOS A SUMARIZAÇÃO.
-        #
-        # dica:
-        # 1. CRIE UMA CÓPIA da `self.routing_table` NÃO ALTERE ESTA VALOR.
-        # 2. IMPLEMENTE A LÓGICA DE SUMARIZAÇÃO nesta cópia.
-        # 3. ENVIE A CÓPIA SUMARIZADA no payload, em vez da tabela original.
+        # 1. Cria cópia para não alterar a tabela real do roteador
+        tabela_copiada = copy.deepcopy(self.routing_table)
         
-        tabela_para_enviar = self.routing_table # ATENÇÃO: Substitua pela cópia sumarizada.
+        # 2. Aplica a sumarização
+        tabela_sumarizada = sumarizar_rotas(tabela_copiada)
 
+        # 3. Monta o pacote e envia
         payload = {
             "sender_address": self.my_address,
-            "routing_table": tabela_para_enviar
+            "routing_table": tabela_sumarizada
         }
 
         for neighbor_address in self.neighbors:
             url = f'http://{neighbor_address}/receive_update'
             try:
-                print(f"Enviando tabela para {neighbor_address}")
+                # print(f"Enviando tabela para {neighbor_address}")
                 requests.post(url, json=payload, timeout=5)
             except requests.exceptions.RequestException as e:
-                print(f"Não foi possível conectar ao vizinho {neighbor_address}. Erro: {e}")
+                pass
 
 # --- API Endpoints ---
 # Instância do Flask e do Roteador (serão inicializadas no main)
