@@ -12,6 +12,7 @@ import requests
 from flask import Flask, jsonify, request
 
 from sumarizacao import sumarizar_rotas
+from split_horizon import apply_split_horizon
 
 class Router:
     """
@@ -78,13 +79,15 @@ class Router:
         # 2. Aplica a sumarização
         tabela_sumarizada = sumarizar_rotas(tabela_copiada)
 
-        # 3. Monta o pacote e envia
-        payload = {
-            "sender_address": self.my_address,
-            "routing_table": tabela_sumarizada
-        }
-
         for neighbor_address in self.neighbors:
+            # Aplica o split horizon do Pedro
+            tabela_final = apply_split_horizon(tabela_sumarizada, neighbor_address)
+            
+            payload = {
+                "sender_address": self.my_address,
+                "routing_table": tabela_final
+            }
+
             url = f'http://{neighbor_address}/receive_update'
             try:
                 # print(f"Enviando tabela para {neighbor_address}")
