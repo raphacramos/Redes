@@ -6,6 +6,7 @@ import threading
 import time
 from argparse import ArgumentParser
 import copy
+import split_horizon
 
 import requests
 from flask import Flask, jsonify, request
