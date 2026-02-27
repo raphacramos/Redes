@@ -8,11 +8,15 @@ from argparse import ArgumentParser
 import copy
 import split_horizon
 
+
 import requests
 from flask import Flask, jsonify, request
 
 from sumarizacao import sumarizar_rotas
-from split_horizon import apply_split_horizon
+try:
+    from split_horizon import apply_split_horizon
+except ImportError:
+    apply_split_horizon = None
 
 class Router:
     """
@@ -28,8 +32,7 @@ class Router:
                           Ex: {'127.0.0.1:5001': 5, '127.0.0.1:5002': 10}
         :param my_network: A rede que este roteador administra diretamente.
                            Ex: '10.0.1.0/24'
-        :param update_interval: O intervalo em segundos para enviar atualizações, o tempo que o roteador espera 
-                                antes de enviar atualizações para os vizinhos.        """
+        :param update_interval: O intervalo em segundos para enviar atualizações, o tempo que o roteador espera antes de enviar atualizações para os vizinhos.        """
         self.my_address = my_address
         self.neighbors = neighbors
         self.my_network = my_network
@@ -80,17 +83,19 @@ class Router:
         tabela_sumarizada = sumarizar_rotas(tabela_copiada)
 
         for neighbor_address in self.neighbors:
-            # Aplica o split horizon do Pedro
-            tabela_final = apply_split_horizon(tabela_sumarizada, neighbor_address)
-            
+            # Remove a entrada do próprio vizinho antes de enviar para ele
+            # (evita que ele aprenda uma rota para si mesmo)
+            tabela_para_enviar = {k: v for k, v in tabela_sumarizada.items() if k != neighbor_address}
+
+           #tabela_para_enviar = apply_split_horizon(tabela_para_enviar, neighbor_address)
+
             payload = {
                 "sender_address": self.my_address,
-                "routing_table": tabela_final
+                "routing_table": tabela_para_enviar
             }
 
             url = f'http://{neighbor_address}/receive_update'
             try:
-                # print(f"Enviando tabela para {neighbor_address}")
                 requests.post(url, json=payload, timeout=5)
             except requests.exceptions.RequestException as e:
                 pass
@@ -145,6 +150,11 @@ def receive_update():
     
     # 2. Iterar sobre a tabela recebida
     for rede_destino, info in sender_table.items():
+        # Ignora entradas que apontam para este próprio roteador ou sua rede local
+        # (evita aprender rota para si mesmo ou sobrescrever a rota local com custo 0)
+        if rede_destino == router_instance.my_address or rede_destino == router_instance.my_network:
+            continue
+
         custo_vizinho = info['cost']
         
         # 3. Matemática do Bellman-Ford
